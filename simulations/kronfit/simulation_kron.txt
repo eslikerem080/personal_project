@@ -1,0 +1,8 @@
+Input	test.txt
+Command line options
+	i:test.txt
+	o:simulation_kron.txt
+Loglikelihood	-136148.51
+Absolute error (based on expected number of edges)	0.010834
+RunTime	288.734
+Estimated initiator	[0.707473, 0.775202; 0.780648, 0.557753]
