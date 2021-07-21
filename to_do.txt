@@ -1,0 +1,9 @@
+1) average degree distribution
+2) louvain community detection algorithm 
+3) Check ecosystem metrics math
+4) Calculate ecosystem metrics
+5) Find a way to separate contracts into communities 
+6) Find dex addresses
+7) Find price
+8) optional - gas price
+9) Exract dates
