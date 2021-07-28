@@ -14,7 +14,7 @@ import(
 func main() {
 	
     client, err := ethclient.Dial("http://localhost:8888")
-    //"http://localhost:8888"
+    
     //"https://mainnet.infura.io/v3/7ee001f2b684469faff12e0485f3f977"
     if err != nil {
         log.Fatal(err)
@@ -22,7 +22,7 @@ func main() {
 
 	// Reading token addresses from the file
 
-	file, err := os.Open("token_addresses.txt")
+	file, err := os.Open("usdt_address.txt")
   
     if err != nil {
         log.Fatalf("failed to open")
