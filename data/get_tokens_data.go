@@ -8,12 +8,14 @@ import(
 	"bufio"
 	"strings"
 	"fmt"
-    "sync"
+    //"sync"
+    "math/big"
+    "context"
 )
 
 func main() {
 	
-    client, err := ethclient.Dial("http://localhost:8888")
+    client, err := ethclient.Dial("http://localhost:8889")
     
     //"https://mainnet.infura.io/v3/7ee001f2b684469faff12e0485f3f977"
     if err != nil {
@@ -47,13 +49,33 @@ func main() {
 
 	fmt.Println(addresses)
 
-    var wg sync.WaitGroup
+    //var wg sync.WaitGroup
 
     fmt.Println(len(addresses))
-    wg.Add(len(addresses))
+    //wg.Add(360)
+
+    // getting latest block
+
+    header, err := client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+    end_block := header.Number
+    start_block := big.NewInt(0).Add(end_block, big.NewInt(-36000))
+    print(end_block)
+    print(start_block)
     for _, address := range addresses {
-        go token_data.Get_token_data(address[1], address[0], client, &wg)
+        for i := start_block; i.Cmp(end_block) == -1 ; i = i.Add(i, big.NewInt(100)){
+            last_block := big.NewInt(0)
+            last_block = last_block.Add(i, big.NewInt(99))
+            fmt.Println(i, "i")
+            fmt.Println(last_block, "last_block")
+            //go token_data.Get_token_data(address[1], address[0], client, &wg, i, last_block)
+            token_data.Get_token_data(address[1], address[0], client, /*&wg,*/ i, last_block)
+        }
+        //wg.Wait()
+        fmt.Println("All goroutines finished")
     }
-    wg.Wait()
-    fmt.Println("All goroutines finished")
+    
+    
 }

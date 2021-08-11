@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"sync"
+	//"sync"
      usdt "./token"
 )
 
@@ -32,6 +32,7 @@ type Edge struct {
 	address_from string
 	address_to string
 	value   float64
+
 }
 
 type key struct {
@@ -44,9 +45,9 @@ var (
 	_ = big.NewInt
 )
 
-func Get_token_data(address string, token_name string, client *ethclient.Client, wg *sync.WaitGroup) {
+func Get_token_data(address string, token_name string, client *ethclient.Client, /*wg *sync.WaitGroup,*/ start_block *big.Int, end_block *big.Int) {
 
-	defer wg.Done()
+	//defer wg.Done()
 
     // AAVE data contract address
     tokenAddress := common.HexToAddress(address)
@@ -63,8 +64,10 @@ func Get_token_data(address string, token_name string, client *ethclient.Client,
         log.Fatal(err)
     }
 
-	oldest_block, latest_block := getOldestBlock(client, 5)
-	edges, dict_of_edges := getTransactionsData(tokenAddress, oldest_block, latest_block, client, decimal_places)
+	//oldest_block, latest_block := getOldestBlock(client, 30, false)
+
+
+	edges, dict_of_edges := getTransactionsData(tokenAddress, start_block, end_block, client, decimal_places)
 	
 	var rows [][]string
 	var nodes []string
@@ -75,13 +78,16 @@ func Get_token_data(address string, token_name string, client *ethclient.Client,
 		fmt.Println(edges[i].address_to)
 		fmt.Println(edges[i].value)
 		v := strconv.FormatFloat(edges[i].value, 'f', 7, 64)
-		data_to_add := []string{edges[i].address_from, edges[i].address_to, v}
+		start_block_str := start_block.String()
+		end_block_str := end_block.String()
+		data_to_add := []string{edges[i].address_from, edges[i].address_to, v, start_block_str, end_block_str}
 		rows = append(rows, data_to_add)
 		nodes = append(nodes, edges[i].address_from)
 		nodes = append(nodes, edges[i].address_to)
 
 	}
-	name := "all_edges_" + token_name + ".csv"
+	start_block_str := start_block.String()
+	name := "all_edges_timed_" + start_block_str + "_" + token_name + ".csv"
 	csvfile, err := os.Create(name)
  
 	if err != nil {
@@ -89,7 +95,7 @@ func Get_token_data(address string, token_name string, client *ethclient.Client,
 	}
  
 	csvwriter := csv.NewWriter(csvfile)
-	heading := []string{"idFrom", "idTo", "value"}
+	heading := []string{"idFrom", "idTo", "value", "start_block", "end_block"}
 	_ = csvwriter.Write(heading)
 	for _, row := range rows {
 		_ = csvwriter.Write(row)
@@ -101,7 +107,7 @@ func Get_token_data(address string, token_name string, client *ethclient.Client,
 
 	nodes = removeDuplicateValues(nodes)
 
-	name = "nodes_" + token_name + ".csv"
+	name = "nodes_" + start_block_str + "_" + token_name + ".csv"
 	csvfile, err = os.Create(name)
 
 	if err != nil {
@@ -124,7 +130,7 @@ func Get_token_data(address string, token_name string, client *ethclient.Client,
 
 	// appending data from dict 
 
-	name = "aggregated_edges_" + token_name + ".csv"
+	name = "aggregated_edges_timed_" + start_block_str + "_" + token_name + ".csv"
 	csvfile, err = os.Create(name)
 
 	if err != nil {
@@ -134,13 +140,15 @@ func Get_token_data(address string, token_name string, client *ethclient.Client,
 	csvwriter = csv.NewWriter(csvfile)
 	
 
-	heading = []string{"addressFrom", "addressTo", "value"}
+	heading = []string{"idFrom", "idTo", "value", "start_block", "end_block"}
 	_ = csvwriter.Write(heading)
 
 	
 	for k, v := range dict_of_edges { 
 		value := strconv.FormatFloat(v, 'f', 7, 64)
-		data_to_add := []string{k.address_from, k.address_to, value}	
+		start_block_str := start_block.String()
+		end_block_str := end_block.String()
+		data_to_add := []string{k.address_from, k.address_to, value, start_block_str, end_block_str}	
 		_ = csvwriter.Write(data_to_add)
 	}
  
@@ -151,8 +159,8 @@ func Get_token_data(address string, token_name string, client *ethclient.Client,
 
 }
 
-func getOldestBlock(client *ethclient.Client, daysAgo int) (*big.Int, *big.Int) {
-
+func getOldestBlock(client *ethclient.Client, daysAgo int, current bool) (*big.Int, *big.Int) {
+	fmt.Println("Getting oldest block")
 	var current_block *big.Int
 	var oldest_block *big.Int
 	current_block = big.NewInt(0)
@@ -163,7 +171,11 @@ func getOldestBlock(client *ethclient.Client, daysAgo int) (*big.Int, *big.Int) 
 		log.Fatal(err)
 	}
 
-	current_block = header.Number
+	if current == true {
+		current_block, _ = getOldestBlock(client, 4, false)
+	}else{
+		current_block = header.Number
+	}
 
 	//2)  Find oldest block in our lookup date range
 	oldest_block = new(big.Int).Set(current_block)
@@ -179,18 +191,21 @@ func getOldestBlock(client *ethclient.Client, daysAgo int) (*big.Int, *big.Int) 
 
 	for {
 		j -= 500
-		oldest_block.Add(oldest_block, big.NewInt(j))
 
+		oldest_block.Add(oldest_block, big.NewInt(j))
+		
 		block, err := client.BlockByNumber(context.Background(), oldest_block)
 		if err != nil {
 			log.Fatal(err)
 		}
-
+		
 		if block.Time() < timeonemonthago {
 
 			break
 		}
 	}
+	fmt.Println(oldest_block)
+	fmt.Println(current_block)
 
 	return oldest_block, current_block
 }
@@ -207,7 +222,7 @@ func decodeBytes(log *types.Log) *big.Int {
 }
 
 func getTransferFromTxLog(logs []*types.Log, pooltopics []string) (string, string, *big.Int) {
-	//fmt.Println("getTransferFromTxLog")
+	fmt.Println("getTransferFromTxLog")
 	var firstLog *types.Log
 	var address_from string
 	var address_to string
@@ -241,23 +256,29 @@ func getTransferFromTxLog(logs []*types.Log, pooltopics []string) (string, strin
 
 // Generates Transaction Logs
 func getTransactionsData(pool_address common.Address, oldest_block *big.Int, latest_block *big.Int, client *ethclient.Client, decimals uint8) ([]Edge, map[key] float64) {
-	
+	fmt.Println("Generates logs")
 	var edges []Edge
 	var m = make(map[key] float64)
 	var logsX []types.Log
 
 	poolTopics := []string{"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}
-
-	big_ten := big.NewInt(1000)
+	fmt.Println(oldest_block, "old")
+	fmt.Println(latest_block, "late")
+	//big_ten := big.NewInt(1)
 	number_of_blocks := big.NewInt(0).Sub(latest_block, oldest_block)
-	step := big.NewInt(0).Div(number_of_blocks, big_ten)
-	fmt.Println(step)
-	fmt.Println(number_of_blocks)
+	//fmt.Println(number_of_blocks, "number of blocks")
+	//step := big.NewInt(0).Div(number_of_blocks, big_ten) 
+	step := number_of_blocks
+	//fmt.Println(step, "step")
+	step = step.Sub(step, big.NewInt(1))
+	//fmt.Println(step)
+	//fmt.Println(number_of_blocks, "number of blocks")
 	new_oldest_block := oldest_block
 
 	for i:= big.NewInt(0).Add(oldest_block, step); i.Cmp(latest_block) == -1; i.Add(i, step){
-	
+		
 		logs, err := try_new_query(pool_address, new_oldest_block, i, client)
+		fmt.Println("Gets out of the new query")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -272,8 +293,8 @@ func getTransactionsData(pool_address common.Address, oldest_block *big.Int, lat
 	// Filters transaction logs
 	
 		number_of_logs := len(logsX)
-		//fmt.Println("looping through an array of logs")
-		//fmt.Println(number_of_logs)
+		fmt.Println("looping through an array of logs")
+		fmt.Println(number_of_logs)
 		for i := 0; i < number_of_logs; i++ {
 			
 			if logsX[i].Topics[0] != common.HexToHash(poolTopics[0]) {
@@ -346,8 +367,10 @@ func add_decimals(value *big.Int, decimals uint8) *big.Float {
 }
 
 func try_new_query(pool_address common.Address, oldest_block *big.Int, latest_block *big.Int, client *ethclient.Client) ([]types.Log, error){
-	
+	fmt.Println("try new query")
 	new_oldest_block := oldest_block
+	fmt.Println(new_oldest_block)
+	fmt.Println(latest_block)
 	query := ethereum.FilterQuery{
 
 		FromBlock: new_oldest_block,
